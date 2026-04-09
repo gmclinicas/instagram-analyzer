@@ -3,7 +3,7 @@ import nodemailer from 'nodemailer';
 export async function sendManagerEmail(analysisData, pdfBase64, fileName) {
   try {
     const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      host: process.env.SMTP_HOST,
       port: process.env.SMTP_PORT || 587,
       secure: false,
       auth: {
@@ -12,7 +12,7 @@ export async function sendManagerEmail(analysisData, pdfBase64, fileName) {
       }
     });
 
-    const managerEmail = process.env.MANAGER_EMAIL || 'gerencia@gmclinicas.com.br';
+    const managerEmail = process.env.MANAGER_EMAIL;
 
     const mailOptions = {
       from: process.env.SMTP_USER,
@@ -81,7 +81,7 @@ export async function sendManagerEmail(analysisData, pdfBase64, fileName) {
 export async function sendUserEmail(email, name, pdfBase64, fileName) {
   try {
     const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      host: process.env.SMTP_HOST,
       port: process.env.SMTP_PORT || 587,
       secure: false,
       auth: {
