@@ -28,12 +28,36 @@ function App() {
     setFormData(newFormData)
     setStep('loading')
 
+    // Converter imagens para base64 se houver upload
+    let dataToSend = { ...newFormData }
+
+    if (newFormData.images && newFormData.images.length > 0) {
+      const imagesBase64 = await Promise.all(
+        newFormData.images.map(file => {
+          return new Promise((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onload = () => {
+              const base64 = reader.result.split(',')[1]
+              resolve({
+                base64,
+                name: file.name,
+                type: file.type
+              })
+            }
+            reader.onerror = reject
+            reader.readAsDataURL(file)
+          })
+        })
+      )
+      dataToSend.images = imagesBase64
+    }
+
     // Chamar Netlify Function
     try {
       const response = await fetch('/.netlify/functions/analyze-profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newFormData)
+        body: JSON.stringify(dataToSend)
       })
 
       const result = await response.json()

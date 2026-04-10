@@ -47,11 +47,13 @@ exports.handler = async (event) => {
       }
     } else if (method === 'upload') {
       console.log('[STEP 1] Processando upload de imagens...');
+      console.log(`[STEP 1] Recebidas ${images?.length || 0} imagens`);
       profileData = {
         method: 'upload',
         images: images || [],
         uploadedAt: new Date().toISOString()
       };
+      console.log('[STEP 1] Imagens processadas com sucesso');
     }
 
     // ===== STEP 2: SALVAR NO GOOGLE SHEETS =====
