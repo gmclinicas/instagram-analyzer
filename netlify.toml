@@ -3,7 +3,11 @@
   functions = "netlify/functions"
   publish = "dist"
 
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["jspdf"]
+
 [dev]
   command = "npm run dev"
   functions = "netlify/functions"
-  port = 5173
+  targetPort = 5173
