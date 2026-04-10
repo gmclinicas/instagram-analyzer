@@ -46,7 +46,8 @@ export async function analyzeWithClaude(profileData) {
   const apiKey = process.env.CLAUDE_API_KEY;
 
   console.log('DEBUG: CLAUDE_API_KEY configurada?', !!apiKey);
-  console.log('DEBUG: CLAUDE_API_KEY começa com sk-ant?', apiKey?.startsWith('sk-ant'));
+  console.log('DEBUG: Método:', profileData.method);
+  console.log('DEBUG: Imagens recebidas:', profileData.images?.length || 0);
 
   if (!apiKey) {
     throw new Error('CLAUDE_API_KEY não configurada');
@@ -56,19 +57,28 @@ export async function analyzeWithClaude(profileData) {
   const content = [
     {
       type: 'text',
-      text: CLAUDE_PROMPT + JSON.stringify(profileData, null, 2)
+      text: CLAUDE_PROMPT + JSON.stringify({
+        method: profileData.method,
+        profileUrl: profileData.profileUrl,
+        imagesCount: profileData.images?.length || 0
+      }, null, 2)
     }
   ];
 
-  // Se houver imagens, adicionar ao prompt
+  // Se houver imagens, adicionar apenas as primeiras 3 para não exceder limites
   if (profileData.images && profileData.images.length > 0) {
-    for (const image of profileData.images) {
+    const maxImages = Math.min(profileData.images.length, 3);
+    console.log(`DEBUG: Enviando ${maxImages} de ${profileData.images.length} imagens`);
+
+    for (let i = 0; i < maxImages; i++) {
+      const image = profileData.images[i];
       if (image.base64) {
+        console.log(`DEBUG: Adicionando imagem ${i + 1}: ${image.name}`);
         content.push({
           type: 'image',
           source: {
             type: 'base64',
-            media_type: 'image/jpeg',
+            media_type: image.type || 'image/jpeg',
             data: image.base64
           }
         });
@@ -78,6 +88,8 @@ export async function analyzeWithClaude(profileData) {
 
   try {
     console.log('DEBUG: Enviando request para Claude API...');
+    console.log('DEBUG: Número de elementos no content:', content.length);
+
     const response = await axios.post(
       'https://api.anthropic.com/v1/messages',
       {
