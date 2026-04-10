@@ -1,5 +1,14 @@
 import { getStore } from '@netlify/blobs';
 
+function getBlobStore() {
+  const siteID = process.env.NETLIFY_SITE_ID;
+  const token = process.env.NETLIFY_AUTH_TOKEN;
+  if (siteID && token) {
+    return getStore({ name: 'analysis-jobs', siteID, token });
+  }
+  return getStore('analysis-jobs');
+}
+
 // Funcao regular - recebe request, salva dados, retorna jobId imediatamente
 export const handler = async (event) => {
   const headers = {
@@ -32,7 +41,7 @@ export const handler = async (event) => {
     const jobId = `job-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
 
     // Salvar dados no Blobs para a background function processar
-    const store = getStore('analysis-jobs');
+    const store = getBlobStore();
     await store.setJSON(jobId, {
       status: 'processing',
       input: { name, email, whatsapp, consultoria, images },

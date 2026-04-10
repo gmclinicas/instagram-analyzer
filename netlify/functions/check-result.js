@@ -1,5 +1,14 @@
 import { getStore } from '@netlify/blobs';
 
+function getBlobStore() {
+  const siteID = process.env.NETLIFY_SITE_ID;
+  const token = process.env.NETLIFY_AUTH_TOKEN;
+  if (siteID && token) {
+    return getStore({ name: 'analysis-jobs', siteID, token });
+  }
+  return getStore('analysis-jobs');
+}
+
 // Funcao regular - frontend faz polling aqui para verificar resultado
 export const handler = async (event) => {
   const headers = {
@@ -19,7 +28,7 @@ export const handler = async (event) => {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'jobId obrigatorio' }) };
     }
 
-    const store = getStore('analysis-jobs');
+    const store = getBlobStore();
     const jobData = await store.get(jobId, { type: 'json' });
 
     if (!jobData) {

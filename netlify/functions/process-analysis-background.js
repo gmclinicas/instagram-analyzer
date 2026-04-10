@@ -3,6 +3,15 @@ import Anthropic from '@anthropic-ai/sdk';
 import { jsPDF } from 'jspdf';
 import nodemailer from 'nodemailer';
 
+function getBlobStore() {
+  const siteID = process.env.NETLIFY_SITE_ID;
+  const token = process.env.NETLIFY_AUTH_TOKEN;
+  if (siteID && token) {
+    return getStore({ name: 'analysis-jobs', siteID, token });
+  }
+  return getStore('analysis-jobs');
+}
+
 // ==================== CLAUDE PROMPT ====================
 const CLAUDE_PROMPT = `Voce e um consultor de posicionamento digital especializado em clinicas odontologicas e profissionais de saude estetica brasileiros de alto ticket.
 
@@ -61,7 +70,7 @@ export const handler = async (event) => {
 
     console.log(`[BG ${jobId}] Iniciando processamento...`);
 
-    const store = getStore('analysis-jobs');
+    const store = getBlobStore();
     const jobData = await store.get(jobId, { type: 'json' });
 
     if (!jobData || !jobData.input) {
@@ -126,7 +135,7 @@ export const handler = async (event) => {
 
     if (jobId) {
       try {
-        const store = getStore('analysis-jobs');
+        const store = getBlobStore();
         await store.setJSON(jobId, {
           status: 'error',
           error: error.message,
