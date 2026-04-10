@@ -53,38 +53,17 @@ export async function analyzeWithClaude(profileData) {
     throw new Error('CLAUDE_API_KEY não configurada');
   }
 
-  // Montar mensagem com dados + imagens
+  // Montar mensagem com dados do perfil
   const content = [
     {
       type: 'text',
       text: CLAUDE_PROMPT + JSON.stringify({
         method: profileData.method,
-        profileUrl: profileData.profileUrl,
+        profileUrl: profileData.profileUrl || 'N/A',
         imagesCount: profileData.images?.length || 0
       }, null, 2)
     }
   ];
-
-  // Se houver imagens, adicionar apenas as primeiras 3 para não exceder limites
-  if (profileData.images && profileData.images.length > 0) {
-    const maxImages = Math.min(profileData.images.length, 3);
-    console.log(`DEBUG: Enviando ${maxImages} de ${profileData.images.length} imagens`);
-
-    for (let i = 0; i < maxImages; i++) {
-      const image = profileData.images[i];
-      if (image.base64) {
-        console.log(`DEBUG: Adicionando imagem ${i + 1}: ${image.name}`);
-        content.push({
-          type: 'image',
-          source: {
-            type: 'base64',
-            media_type: image.type || 'image/jpeg',
-            data: image.base64
-          }
-        });
-      }
-    }
-  }
 
   try {
     console.log('DEBUG: Enviando request para Claude API...');
@@ -93,7 +72,7 @@ export async function analyzeWithClaude(profileData) {
     const response = await axios.post(
       'https://api.anthropic.com/v1/messages',
       {
-        model: 'claude-opus-4-1-20250805',
+        model: 'claude-3-5-sonnet-20241022',
         max_tokens: 2000,
         messages: [
           {
