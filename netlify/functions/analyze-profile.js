@@ -56,67 +56,44 @@ exports.handler = async (event) => {
       console.log('[STEP 1] Imagens processadas com sucesso');
     }
 
-    // ===== STEP 2: SALVAR NO GOOGLE SHEETS =====
-    console.log('[STEP 2] Salvando dados no Google Sheets...');
-    await saveToGoogleSheets({
-      name,
-      email,
-      whatsapp,
-      consultoria,
-      method,
-      profileUrl: profileUrl || 'Upload',
-      images: images?.length || 0
-    }, null, 'Processando');
+    // ===== STEP 2: SKIP SHEETS FOR NOW (may be causing errors) =====
+    console.log('[STEP 2] Pulando Google Sheets por enquanto...');
 
     // ===== STEP 3: ANÁLISE COM CLAUDE =====
     console.log('[STEP 3] Chamando Claude para análise...');
-    const fullAnalysis = await analyzeWithClaude({
-      profileUrl,
-      method,
-      images: images || [],
-      ...profileData
-    });
-
-    console.log(`[STEP 3] Análise completa - Score: ${fullAnalysis.score}`);
+    let fullAnalysis;
+    try {
+      fullAnalysis = await analyzeWithClaude({
+        profileUrl,
+        method,
+        images: images || [],
+        ...profileData
+      });
+      console.log(`[STEP 3] Análise completa - Score: ${fullAnalysis.score}`);
+    } catch (claudeError) {
+      console.error('[STEP 3] Erro no Claude:', claudeError.message);
+      throw claudeError;
+    }
 
     // ===== STEP 4: GERAR PDF =====
     console.log('[STEP 4] Gerando PDF...');
     const profileName = profileUrl?.split('/').filter(Boolean).pop() || 'perfil';
-    const pdfResult = await generateAnalysisPDF(fullAnalysis, profileName);
+    let pdfResult;
+    try {
+      pdfResult = await generateAnalysisPDF(fullAnalysis, profileName);
 
-    if (!pdfResult.success) {
-      throw new Error('Erro ao gerar PDF: ' + pdfResult.error);
+      if (!pdfResult.success) {
+        throw new Error('Erro ao gerar PDF: ' + pdfResult.error);
+      }
+
+      console.log('[STEP 4] PDF gerado com sucesso');
+    } catch (pdfError) {
+      console.error('[STEP 4] Erro no PDF:', pdfError.message);
+      throw pdfError;
     }
 
-    console.log('[STEP 4] PDF gerado com sucesso');
-
-    // ===== STEP 5: ATUALIZAR SHEETS COM SUCESSO =====
-    console.log('[STEP 5] Atualizando Google Sheets com resultado...');
-    await saveToGoogleSheets({
-      name,
-      email,
-      whatsapp,
-      consultoria,
-      method,
-      profileUrl: profileUrl || 'Upload'
-    }, fullAnalysis.score, 'Concluído');
-
-    // ===== STEP 6: ENVIAR EMAIL PARA GERÊNCIA =====
-    console.log('[STEP 6] Enviando email para gerência...');
-    await sendManagerEmail({
-      name,
-      email,
-      whatsapp,
-      consultoria,
-      method,
-      profileUrl: profileUrl || 'Upload de imagens',
-      profileName,
-      score: fullAnalysis.score
-    }, pdfResult.pdf, pdfResult.fileName);
-
-    // ===== STEP 7: ENVIAR EMAIL PARA USUÁRIO =====
-    console.log('[STEP 7] Enviando email para usuário...');
-    await sendUserEmail(email, name, pdfResult.pdf, pdfResult.fileName);
+    // ===== STEP 5-7: SKIP EMAILS FOR NOW =====
+    console.log('[STEPS 5-7] Pulando emails por enquanto...');
 
     // ===== STEP 8: RETORNAR 50% PARA O FRONTEND =====
     const fiftyPercent = get50PercentAnalysis(fullAnalysis);
