@@ -45,6 +45,9 @@ DADOS DO PERFIL RECEBIDO:
 export async function analyzeWithClaude(profileData) {
   const apiKey = process.env.CLAUDE_API_KEY;
 
+  console.log('DEBUG: CLAUDE_API_KEY configurada?', !!apiKey);
+  console.log('DEBUG: CLAUDE_API_KEY começa com sk-ant?', apiKey?.startsWith('sk-ant'));
+
   if (!apiKey) {
     throw new Error('CLAUDE_API_KEY não configurada');
   }
@@ -74,10 +77,11 @@ export async function analyzeWithClaude(profileData) {
   }
 
   try {
+    console.log('DEBUG: Enviando request para Claude API...');
     const response = await axios.post(
       'https://api.anthropic.com/v1/messages',
       {
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-opus-4-1-20250805',
         max_tokens: 2000,
         messages: [
           {
@@ -95,6 +99,7 @@ export async function analyzeWithClaude(profileData) {
       }
     );
 
+    console.log('DEBUG: Resposta recebida com sucesso');
     // Extrair o texto da resposta
     const analysisText = response.data.content[0].text;
 
@@ -113,6 +118,9 @@ export async function analyzeWithClaude(profileData) {
     }
 
   } catch (error) {
+    console.error('DEBUG: Erro completo:', error);
+    console.error('DEBUG: Status:', error.response?.status);
+    console.error('DEBUG: Data:', error.response?.data);
     console.error('Erro ao chamar Claude API:', error.response?.data || error.message);
     throw new Error(`Erro na análise do Claude: ${error.message}`);
   }
