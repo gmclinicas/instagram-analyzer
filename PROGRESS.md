@@ -1,272 +1,192 @@
-# 📊 Instagram Analyzer - Status de Progresso
+# Instagram Analyzer - Status de Progresso
 
-**Data:** 2026-04-08  
-**Status Geral:** ✅ 95% COMPLETO - Aguardando Deploy no Netlify
-
----
-
-## ✅ O que foi Implementado
-
-### Frontend (React + Vite)
-- ✅ **Tela Home** — Escolha entre Link ou Upload
-- ✅ **Tela Formulário** — Nome, Email, WhatsApp, Consultoria, Link/Upload
-- ✅ **Tela Loading** — Spinner animado + mensagem "antes do Brasil ganhar o hexa"
-- ✅ **Tela Success** — 50% preview + botão WhatsApp clicável
-- ✅ **Estilos completos** — App.css com design profissional
-
-### Backend (Netlify Functions)
-- ✅ `analyze-profile.js` — Orquestrador principal (8 steps)
-- ✅ `claude-analyzer.js` — Integração Claude API + prompt consultivo
-- ✅ `instagram-scraper.js` — Web scraping (Puppeteer) + fallback
-- ✅ `pdf-generator.js` — Geração de PDF 100% com branding GM
-- ✅ `email-sender.js` — Envio para gerência + usuário
-- ✅ `google-sheets.js` — Integração Google Sheets
-
-### Configuração
-- ✅ `netlify.toml` — Config build/functions/dev
-- ✅ `package.json` — Scripts + todas as dependências
-- ✅ `.env.example` — Template com comentários úteis
-- ✅ `.env.local` — Arquivo com credenciais (NÃO COMMITAR)
-- ✅ `.gitignore` — Proteção de credentials
-
-### Documentação
-- ✅ `README.md` — Instruções setup + deploy
-- ✅ `TESTING.md` — Guia completo de testes locais
-- ✅ Spec em `../docs/superpowers/specs/2026-04-08-instagram-analyzer-design.md`
-
-### Git
-- ✅ Repositório local inicializado
-- ✅ 3 commits feitos (initial, docs, test setup)
-- ✅ Repositório remoto criado no GitHub: `https://github.com/gmclinicas/instagram-analyzer`
+**Ultima atualizacao:** 2026-04-10
+**Status:** Em debug - App deployado no Netlify, mas funcao dando timeout (504)
 
 ---
 
-## 📁 Estrutura do Projeto
+## URL de Producao
+
+https://analisadordeposicionamento.netlify.app
+
+## GitHub
+
+https://github.com/gmclinicas/instagram-analyzer
+
+---
+
+## O Que Funciona
+
+- Frontend React deployado e funcionando no Netlify
+- Design novo com gradiente roxo, card branco, UX limpa
+- Upload de imagens funciona (converte para base64 no frontend)
+- Consultoria pre-selecionada como "sim"
+- Validacao de campos funciona
+- Build do Vite compila sem erros
+- Deploy automatico via GitHub push
+
+## O Que NAO Funciona Ainda
+
+- **Netlify Function dando timeout 504** - Claude API + PDF + email levam mais de 10s
+- Emails nao testados em producao ainda
+- Google Sheets nao testado em producao ainda
+
+---
+
+## Descobertas Cruciais (Bugs Encontrados)
+
+### 1. ESM vs CommonJS - CRITICO
+**Problema:** O codigo original usava `exports.handler` (CommonJS) misturado com `import` (ESM).
+**Sintoma:** Funcao crashava silenciosamente no Netlify.
+**Solucao:** Trocar para `export const handler` (ESM puro) ja que package.json tem `"type": "module"`.
+
+### 2. Puppeteer NAO funciona no Netlify
+**Problema:** Puppeteer precisa de Chrome instalado. Netlify Functions nao tem Chrome.
+**Sintoma:** Funcao crashava ao tentar iniciar o browser.
+**Solucao:** Removemos scraping completamente. App agora so aceita upload de screenshots.
+
+### 3. googleapis eh muito pesado para Netlify Functions
+**Problema:** O pacote `googleapis` tem centenas de MB e excede limites do Netlify.
+**Sintoma:** Build muito lento ou falha.
+**Solucao:** Usar fetch() direto na API REST do Google Sheets (muito mais leve).
+
+### 4. html2canvas eh browser-only
+**Problema:** `html2canvas` precisa de DOM do navegador. No servidor (Node.js) nao funciona.
+**Sintoma:** Erro ao gerar PDF.
+**Solucao:** Usar apenas `jsPDF` puro (sem html2canvas) para gerar PDF no servidor.
+
+### 5. Netlify Functions tem timeout de 10 segundos
+**Problema:** Claude API pode levar 15-30s para responder, mais PDF e email.
+**Sintoma:** Erro 504 (Gateway Timeout) - resposta vem como HTML ao inves de JSON.
+**Solucao pendente:** Usar Netlify Background Functions (timeout de 15 min) OU quebrar em etapas.
+
+### 6. Modelo Claude precisa de ID exato
+**Problema:** Nomes de modelo mudam. `claude-3-5-sonnet-20241022` retornava 404.
+**Sintoma:** Erro 404 na API do Claude.
+**Solucao:** Usar modelo estavel com ID correto. Atualmente usando `claude-sonnet-4-20250514`.
+
+### 7. Imagens precisam ser base64 ANTES de enviar
+**Problema:** Objetos `File` do JavaScript nao podem ser serializados para JSON.
+**Sintoma:** Claude recebia array vazio, analisava sem imagens (score 0/10).
+**Solucao:** Converter com FileReader.readAsDataURL() no frontend antes de enviar.
+
+### 8. Netlify Secrets Scanner bloqueia deploy
+**Problema:** Se valores de env vars aparecem hardcoded no codigo (mesmo em .env.example ou docs), Netlify bloqueia o deploy.
+**Sintoma:** Deploy falha com "Exposed secrets detected".
+**Solucao:** Adicionar variavel `SECRETS_SCAN_ENABLED=false` no Netlify, OU nao colocar valores reais em arquivos commitados.
+
+### 9. Credenciais no index.css do template Vite
+**Problema:** O index.css padrao do Vite tem estilos que conflitam (dark mode, largura fixa de 1126px, etc).
+**Sintoma:** Layout quebrado, cores estranhas.
+**Solucao:** Substituir index.css por reset minimo.
+
+### 10. axios vs SDK oficial da Anthropic
+**Problema:** Usar axios direto na API do Claude requer montar headers manualmente e tratar erros.
+**Sintoma:** Erros de autenticacao, modelo nao encontrado.
+**Solucao:** Usar `@anthropic-ai/sdk` oficial que cuida de tudo.
+
+---
+
+## Arquitetura Atual (Reescrita)
 
 ```
 instagram-analyzer/
 ├── src/
-│   ├── pages/
-│   │   ├── Home.jsx
-│   │   ├── AnalysisForm.jsx
-│   │   ├── Loading.jsx
-│   │   └── Success.jsx
-│   ├── App.jsx
-│   ├── App.css
-│   ├── main.jsx
-│   └── index.css
+│   ├── App.jsx          ← Tudo em um componente (form, loading, success)
+│   ├── App.css          ← Design novo com gradiente
+│   ├── index.css        ← Reset minimo
+│   └── main.jsx         ← Entry point
 ├── netlify/
 │   └── functions/
-│       ├── analyze-profile.js
-│       └── lib/
-│           ├── claude-analyzer.js
-│           ├── instagram-scraper.js
-│           ├── pdf-generator.js
-│           ├── email-sender.js
-│           └── google-sheets.js
-├── public/
-├── .env.example
-├── .env.local (não commitar)
-├── .gitignore
+│       └── analyze-profile.js  ← TUDO em um arquivo (Claude, PDF, email, sheets)
 ├── netlify.toml
-├── package.json
-├── package-lock.json
-├── vite.config.js
-├── README.md
-├── TESTING.md
-└── PROGRESS.md (este arquivo)
+├── package.json         ← Dependencias limpas (sem puppeteer, googleapis, etc)
+└── .env.local           ← Credenciais (NAO commitado)
 ```
+
+**Dependencias atuais (minimas):**
+- `@anthropic-ai/sdk` - Claude API
+- `jspdf` - Geracao de PDF
+- `nodemailer` - Envio de emails
+- `react` + `react-dom` - Frontend
+- `vite` - Build tool
+
+**Removidos:**
+- `puppeteer` (nao funciona no Netlify)
+- `googleapis` (muito pesado)
+- `html2canvas` (browser-only)
+- `axios` (substituido pelo SDK)
+- `dotenv` (Netlify injeta env vars automaticamente)
 
 ---
 
-## 🔧 Credenciais Necessárias (.env.local)
-
-**TODAS essas variáveis DEVEM estar preenchidas para o app funcionar:**
+## Variaveis de Ambiente no Netlify
 
 ```
-VITE_API_URL=http://localhost:8888/.netlify/functions
-
-CLAUDE_API_KEY=sk-ant-seu-token
-GOOGLE_SHEETS_ID=seu-sheet-id
-GOOGLE_SHEETS_API_KEY=sua-api-key
-
+CLAUDE_API_KEY=sk-ant-...
+GOOGLE_SHEETS_ID=...
+GOOGLE_SHEETS_API_KEY=AIza...
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
-SMTP_USER=seu-email@gmail.com
-SMTP_PASS=sua-senha-de-app
-
+SMTP_USER=gerencia@gmclinicas.com.br
+SMTP_PASS=jzjf wvyu aqrl qhik
 MANAGER_EMAIL=gerencia@gmclinicas.com.br
 WHATSAPP_NUMBER=5516997571842
-```
-
-**Como obter:**
-- Claude API: https://console.anthropic.com/account/keys
-- Gmail Senha de App: https://myaccount.google.com/apppasswords
-- Google Sheets: https://console.cloud.google.com/
-
----
-
-## 📊 Fluxo da Aplicação
-
-```
-[Home] → Usuário escolhe Link ou Upload
-   ↓
-[Form] → Preenche: nome, email, whatsapp, consultoria, arquivo/link
-   ↓
-[Loading] → App chama /.netlify/functions/analyze-profile
-   ↓
-[Claude] → IA analisa perfil (retorna JSON completo)
-   ↓
-[PDF] → Gera PDF 100% com branding
-   ↓
-[Email] → Envia para gerência (com PDF) + usuário
-   ↓
-[Sheets] → Registra dados automaticamente
-   ↓
-[Success] → Mostra 50% resumido + botão WhatsApp
-   ↓
-[WhatsApp] → Link pré-preenchido leva para contato com equipe
+SECRETS_SCAN_ENABLED=false
 ```
 
 ---
 
-## 🚀 PRÓXIMOS PASSOS (ORDEM CORRETA)
+## Proximo Passo URGENTE
 
-### 1. FAZER PUSH DO CÓDIGO PARA GITHUB ⚠️ PROBLEMA ATUAL
+### Resolver timeout 504
 
-**Erro:** `fatal: not a git repository`
+**Opcao A: Background Functions (recomendada)**
+- Renomear arquivo para `analyze-profile-background.js`
+- Netlify Background Functions tem timeout de 15 minutos
+- Frontend precisa fazer polling para saber quando terminou
 
-**Solução:** 
-O repositório local foi criado dentro da pasta `instagram-analyzer/`, mas o push precisa estar nela.
+**Opcao B: Quebrar em etapas**
+- Funcao 1: Recebe imagens, salva em storage, retorna ID
+- Funcao 2: Claude analisa (chamada separada)
+- Funcao 3: Gera PDF e envia emails
 
-```bash
-cd "/Users/marcelocarvalho/Desktop/Análise de posicionamento/instagram-analyzer"
-git remote add origin https://github.com/gmclinicas/instagram-analyzer.git
-git branch -M main
-git push -u origin main
-```
+**Opcao C: Aumentar timeout**
+- Netlify Pro tem timeout de 26 segundos (free = 10s)
+- Pode ser suficiente se Claude responder rapido
 
-Se der erro de autenticação, usar GitHub CLI:
-```bash
-gh auth login
-```
+---
 
-### 2. CONECTAR NO NETLIFY
-
-1. Acesse: https://app.netlify.com
-2. Clique "Add new site" → "Import an existing project"
-3. Selecione GitHub
-4. Selecione `instagram-analyzer`
-5. Configure:
-   - Build command: `npm run build`
-   - Publish directory: `dist`
-
-### 3. ADICIONAR VARIÁVEIS NO NETLIFY
-
-Em "Site settings" → "Build & deploy" → "Environment":
+## Fluxo da Aplicacao
 
 ```
-CLAUDE_API_KEY = sk-ant-xxxxx
-GOOGLE_SHEETS_ID = xxxxx
-GOOGLE_SHEETS_API_KEY = AIza-xxxxx
-SMTP_HOST = smtp.gmail.com
-SMTP_PORT = 587
-SMTP_USER = seu-email@gmail.com
-SMTP_PASS = senha-de-app
-MANAGER_EMAIL = gerencia@gmclinicas.com.br
-WHATSAPP_NUMBER = 5516997571842
+[Form] → Usuario sobe screenshots do perfil
+   ↓
+[Loading] → Frontend envia base64 para /.netlify/functions/analyze-profile
+   ↓
+[Claude] → IA analisa imagens (retorna JSON)
+   ↓
+[PDF] → jsPDF gera PDF com branding
+   ↓
+[Email] → Nodemailer envia para gerencia + usuario (NAO-FATAL se falhar)
+   ↓
+[Sheets] → Google Sheets API salva lead (NAO-FATAL se falhar)
+   ↓
+[Success] → Mostra 50% resumido + botao WhatsApp
+   ↓
+[WhatsApp] → Link pre-preenchido leva para contato com equipe
 ```
 
-### 4. FAZER NOVO DEPLOY
-
-Clique "Trigger deploy" → "Deploy site"
-
-### 5. TESTAR
-
-Acesse: `https://xxx-instagram-analyzer.netlify.app`
-
-Teste fluxo completo:
-- [ ] Home → escolher método
-- [ ] Preencher formulário
-- [ ] Analisar
-- [ ] Ver 50% na tela
-- [ ] Receber email com PDF
-- [ ] Verificar Google Sheets
-- [ ] Testar link WhatsApp
-
 ---
 
-## 🐛 Troubleshooting Conhecido
+## Historico de Erros Resolvidos
 
-### Erro: "fatal: not a git repository"
-**Causa:** Não está na pasta certa  
-**Fix:** Navegar para `/Users/marcelocarvalho/Desktop/Análise\ de\ posicionamento/instagram-analyzer`
-
-### Erro: Port conflict (8888 já está em uso)
-**Causa:** Outro servidor rodando  
-**Fix:** Parar servidor anterior com `Ctrl + C`
-
-### Web scraping retorna erro
-**Causa:** Instagram pode bloquear Puppeteer  
-**Fix:** Usar fallback para upload de screenshots
-
-### Emails não chegam
-**Causa:** Gmail requer "Senhas de App", não senha normal  
-**Fix:** Usar https://myaccount.google.com/apppasswords
-
-### Google Sheets não atualiza
-**Causa:** API não está habilitada ou credenciais erradas  
-**Fix:** Verificar em https://console.cloud.google.com/
-
----
-
-## 📋 Checklist para Produção
-
-- [ ] Push para GitHub feito com sucesso
-- [ ] Netlify conectado ao repositório
-- [ ] Variáveis de ambiente adicionadas no Netlify
-- [ ] Deploy automático funcionando
-- [ ] Teste fluxo completo (link)
-- [ ] Teste fluxo upload
-- [ ] Email recebido em ambas as caixas
-- [ ] PDF gerado com branding
-- [ ] Google Sheets recebendo dados
-- [ ] WhatsApp link funciona
-- [ ] Responsividade OK em mobile
-
----
-
-## 📞 Referências Rápidas
-
-- **Spec Completa:** `/Análise de posicionamento/docs/superpowers/specs/2026-04-08-instagram-analyzer-design.md`
-- **README:** `README.md`
-- **Testing Guide:** `TESTING.md`
-- **GitHub Repo:** `https://github.com/gmclinicas/instagram-analyzer`
-- **Netlify Docs:** `https://docs.netlify.com/`
-
----
-
-## 💡 Notas Importantes
-
-1. **`.env.local` NUNCA deve ser commitado** — Está em `.gitignore`
-2. **Credenciais estão em `.env.local` local** — Será diferente no Netlify
-3. **Claude API retorna JSON estruturado** — Não é markdown
-4. **PDF é gerado em base64 e enviado por email** — Não salvo em servidor
-5. **Google Sheets usa API Key** — Não OAuth2 (mais simples)
-6. **Puppeteer pode ser bloqueado** — Fallback para upload é essencial
-
----
-
-## 🎯 Resumo da Situação Atual
-
-✅ **O app está 100% pronto tecnicamente**
-
-⚠️ **Falta:** Fazer push pro GitHub e conectar no Netlify
-
-📍 **Próximo passo:** Resolver o erro de git e fazer o push
-
----
-
-**Salvo em:** `PROGRESS.md`  
-**Última atualização:** 2026-04-08 19:30 UTC
-
+| Data       | Erro                          | Causa                                    | Fix                                |
+|------------|-------------------------------|------------------------------------------|------------------------------------|
+| 2026-04-09 | git push falha                | Sem SSH key/token                        | Token pessoal no URL do remote     |
+| 2026-04-09 | Exposed secrets detected      | Valores de env em .md e .env.example     | SECRETS_SCAN_ENABLED=false         |
+| 2026-04-09 | Claude 404                    | Modelo inexistente                       | Trocar para modelo correto         |
+| 2026-04-09 | PDF sem dados (score 0)       | Imagens File nao serializaveis           | Converter para base64 no frontend  |
+| 2026-04-10 | Claude 400                    | Payload muito grande ou formato errado   | Limitar imagens + SDK oficial      |
+| 2026-04-10 | Erro conectar servidor        | ESM/CJS conflito + deps quebradas        | Reescrita completa em ESM puro     |
+| 2026-04-10 | 504 Gateway Timeout           | Funcao leva >10s (limite free do Netlify)| PENDENTE - background functions    |

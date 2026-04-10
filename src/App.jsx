@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import './App.css'
 
 function App() {
@@ -12,6 +12,13 @@ function App() {
   })
   const [analysisResult, setAnalysisResult] = useState(null)
   const [error, setError] = useState(null)
+  const [loadingMsg, setLoadingMsg] = useState('Enviando imagens...')
+  const pollingRef = useRef(null)
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => { if (pollingRef.current) clearInterval(pollingRef.current) }
+  }, [])
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
@@ -22,12 +29,61 @@ function App() {
     setFormData(prev => ({ ...prev, images: Array.from(e.target.files) }))
   }
 
+  const pollForResult = (jobId) => {
+    let attempts = 0
+    const maxAttempts = 60 // 60 x 3s = 3 minutos max
+
+    const messages = [
+      'Enviando imagens...',
+      'Analisando o perfil...',
+      'A IA esta avaliando cada detalhe...',
+      'Gerando diagnostico...',
+      'Montando recomendacoes...',
+      'Quase la...',
+      'Finalizando analise...'
+    ]
+
+    pollingRef.current = setInterval(async () => {
+      attempts++
+
+      // Atualizar mensagem de loading
+      const msgIdx = Math.min(Math.floor(attempts / 4), messages.length - 1)
+      setLoadingMsg(messages[msgIdx])
+
+      if (attempts >= maxAttempts) {
+        clearInterval(pollingRef.current)
+        setError('A analise esta demorando mais que o esperado. Voce recebera o resultado por email.')
+        setStep('form')
+        return
+      }
+
+      try {
+        const res = await fetch(`/.netlify/functions/check-result?jobId=${jobId}`)
+        const data = await res.json()
+
+        if (data.status === 'completed') {
+          clearInterval(pollingRef.current)
+          setAnalysisResult(data.data)
+          setStep('success')
+        } else if (data.status === 'error') {
+          clearInterval(pollingRef.current)
+          setError(data.error || 'Erro na analise')
+          setStep('form')
+        }
+        // Se 'processing', continua polling
+      } catch (err) {
+        console.error('Erro no polling:', err)
+        // Nao para o polling por erros de rede temporarios
+      }
+    }, 3000) // Polling a cada 3 segundos
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError(null)
 
     if (!formData.name || !formData.email || !formData.whatsapp) {
-      setError('Preencha todos os campos obrigatórios')
+      setError('Preencha todos os campos obrigatorios')
       return
     }
 
@@ -37,6 +93,7 @@ function App() {
     }
 
     setStep('loading')
+    setLoadingMsg('Enviando imagens...')
 
     try {
       // Converter imagens para base64
@@ -53,6 +110,8 @@ function App() {
         }))
       )
 
+      setLoadingMsg('Iniciando analise...')
+
       const response = await fetch('/.netlify/functions/analyze-profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -67,10 +126,11 @@ function App() {
 
       const result = await response.json()
 
-      if (result.status === 'success') {
-        setAnalysisResult(result.data)
-        setStep('success')
-      } else {
+      if (result.status === 'processing' && result.jobId) {
+        // Iniciar polling
+        setLoadingMsg('Analisando o perfil...')
+        pollForResult(result.jobId)
+      } else if (result.status === 'error') {
         setError(result.error || 'Erro desconhecido')
         setStep('form')
       }
@@ -89,10 +149,13 @@ function App() {
           <div className="loading-icon">⚽</div>
           <h2>Analisando seu perfil...</h2>
           <p className="loading-text">
+            {loadingMsg}
+          </p>
+          <div className="spinner" />
+          <p className="loading-subtext">
             Isso pode demorar alguns minutos,<br />
             mas fica pronto antes do Brasil ganhar o hexa
           </p>
-          <div className="spinner" />
         </div>
       </div>
     )
