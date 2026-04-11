@@ -50,13 +50,18 @@ export const handler = async (event) => {
 
     console.log(`[JOB ${jobId}] Criado - ${name} (${email}), ${images.length} imagens`);
 
-    // Disparar background function via fetch interno
+    // Disparar background function (await garante que o request eh enviado)
     const siteUrl = process.env.URL || process.env.DEPLOY_URL || 'https://analisadordeposicionamento.netlify.app';
-    fetch(`${siteUrl}/.netlify/functions/process-analysis-background`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jobId })
-    }).catch(err => console.error('Erro ao disparar background:', err.message));
+    try {
+      const bgRes = await fetch(`${siteUrl}/.netlify/functions/process-analysis-background`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId })
+      });
+      console.log(`[JOB ${jobId}] Background disparada, status: ${bgRes.status}`);
+    } catch (err) {
+      console.error(`[JOB ${jobId}] Erro ao disparar background:`, err.message);
+    }
 
     // Retorna imediatamente com o jobId
     return {
